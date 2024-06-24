@@ -12,10 +12,17 @@ class TicTacToe():
         self.turn = 1 # player A = 1, player B = -1
         self.game_is_over = False # Boolean
         self.winner = None # 1 for player A, -1 for player B, None if draw or game isn't over
+        self.game_ledger = []
 
     def print_board(self):
         print()
         print(self.board)
+        
+    def print_boards(self):
+        print()
+        for board in self.game_ledger:
+            print(board)
+            print()
 
     def make_move(self, marker, position):
         i = position // 3
@@ -36,6 +43,7 @@ class TicTacToe():
                 
             # decide move
             current_board = self.board.copy()
+            self.game_ledger.append(self.board.copy()) # record of moves
             move = policy.get_move(current_board, self.turn)
             self.make_move(self.turn, move)
             next_board = self.board.copy()
@@ -55,6 +63,8 @@ class TicTacToe():
                 self.print_board()
                 print(f"Winner so far: {self.winner}")
                 
+        self.game_ledger.append(self.board.copy())
+        
         if visualize:
             print(f"Final Winner: {self.winner}")     
             
@@ -92,6 +102,9 @@ class TicTacToe():
         for i in tqdm(range(N)):
             self.play_game(clear_board_when_over=False)
             winners[i] = self.winner
+            """if self.winner == -1:
+                self.print_boards()
+                break"""
             self.clear_board()
             
         # print stats
