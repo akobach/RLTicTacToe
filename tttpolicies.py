@@ -153,19 +153,19 @@ class QTablePolicy():
         if is_over and winner is None:
             return
         
-        """if not is_over:
+        if not is_over:
             R = 0
             if turn == 1:
                 Qext = np.nanmax(next_qboard)
             if turn == -1:
-                Qext = np.nanmin(next_qboard)"""
+                Qext = np.nanmin(next_qboard)
                 
-        if not is_over:
+        """if not is_over:
             R = 0
             if turn == 1:
                 Qext = max([np.nanmax(next_qboard), np.nanmin(next_qboard)], key=abs)
             if turn == -1:
-                Qext = max([np.nanmin(next_qboard), np.nanmax(next_qboard)], key=abs)
+                Qext = max([np.nanmin(next_qboard), np.nanmax(next_qboard)], key=abs)"""
                 
         current_qboard[move] += self.learning_rate*(R + self.discount_factor*Qext - current_qboard[move])
         self.qtable[current_qboard_index] = current_qboard  

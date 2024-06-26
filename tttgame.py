@@ -102,9 +102,6 @@ class TicTacToe():
         for i in tqdm(range(N)):
             self.play_game(clear_board_when_over=False)
             winners[i] = self.winner
-            """if self.winner == -1:
-                self.print_boards()
-                break"""
             self.clear_board()
             
         # print stats
