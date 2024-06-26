@@ -1,6 +1,4 @@
-# Project Title
-
-Q-Learning for Tic Tac Toe
+# Q-Learning for Tic Tac Toe
 
 ## Description
 
