@@ -1,72 +1,169 @@
+import abc
 import numpy as np
+from bitarray import bitarray 
 import random
-import hickle as hkl
 import sys
 import tttgame
-import matplotlib.pyplot as plt
 from tqdm import tqdm
+import matplotlib.pyplot as plt
+import pickle
 
 
-class RandomPolicy():
-    def get_move(self, board, turn):
-        empty_indices = [i for i,x in enumerate(board.flatten()) if x == 0]
+
+class tttPolicy():
+    @abc.abstractmethod
+    def get_move(self):
+        raise NotImplementedError("Subclass needs to implement get_move()")
+    
+    @abc.abstractmethod
+    def learn(self):
+        raise NotImplementedError("Subclass needs to implement learn()")
+
+
+class RandomPolicy(tttPolicy):
+    @staticmethod
+    def random_move(game):
+        empty_indices = [i for i in game.current_board.empty_spaces().itersearch(bitarray("0"))]
         return random.choice(empty_indices)
     
-    def learn(self, current_state, move, next_state, turn, winner, is_over):
+    def get_move(self, game):
+        return self.random_move(game)
+    
+    def learn(self, **kwargs):
         pass
     
 
-class ManualPolicy():
-    def get_move(self, board, turn):
-        while True:
-            move = int(input("Choose space (0-8): "))
-            empty_indices = [i for i,x in enumerate(board.flatten()) if x == 0]
-            if move in empty_indices:
-                return move
-            else:
-                print("Space already taken! Try again.")
-    
-    def learn(self, current_state, move, next_state, turn, winner, is_over):
-        pass
-                
-
-class QTablePolicy():
+class BoardQTable:
+    def __init__(self, board):
+        init_values = np.random.randn(9)
+        
+        # put np.nan values where spaces are taken
+        empty = board.empty_spaces()
+        self.qvalues = np.asarray([x if empty[i]==0 else np.nan for i,x in enumerate(init_values)])
+     
+  
+class QPolicy(tttPolicy):
     def __init__(self, **kwargs):
+        # option to input a pickle file with the Q table
+        # if no input file provided, create an empty dictionary
         self.file = kwargs["input_file"]
-        self.qtable = self.load()
+        
+        # qdict is a dictionary 
+        # the keys are integers created with hash(BoardState) 
+        # the values are BoardQTable objects
+        self.qdict = self.load_qdict()
+        
+        # epsilon value for epsilon-greedy policy
         self.epsilon = kwargs["epsilon"]
+        
+        # learning rate, usually called alpha
         self.learning_rate = 0
+        
+        # discoutn factor, usually called gamma
         self.discount_factor = 0
         
+        
+    def load_qdict(self):
+        if self.file is None: 
+            return dict()       
+        try:
+            with open(self.file, "rb") as f:
+                return pickle.load(f)
+        except Exception as error:
+            print(error)
+            print(f"ERROR! Cannot open {self.file}. Exiting...")
+            sys.exit()
+    
+    
+    def save(self, output_file):
+        # saves Q tabel to a pickle file
+        with open(output_file, "wb") as f:
+            pickle.dump(self.qdict, f)
+        
+        
+    def get_board_qtable(self, game=None, board=None):                
+        key = hash(board)
+        
+        # if board has not been accessed before, create BoardQTable for it
+        if key not in self.qdict.keys():
+            self.qdict[key] = BoardQTable(board)  
+    
+        # return BoardQTable object
+        return self.qdict[key]
+         
+         
+    def get_move(self, game):
+        # epsilon greedy
+        if np.random.rand() < self.epsilon:
+            return RandomPolicy.random_move(game)
+        
+        current_boardqtable = self.get_board_qtable(game=game, board=game.current_board)
+        if game.Xturn:
+            return np.nanargmax(current_boardqtable.qvalues)
+        else:
+            return np.nanargmin(current_boardqtable.qvalues)
+        
+        
+    def learn(self, **kwargs):
+        game = kwargs["game"]
+        
+        if game.game_over:
+            if game.Xwon:
+                Qext = 0
+                R = 1
+            elif not game.Xwon:
+                Qext = 0
+                R = -1
+            else:
+                Qext = 0
+                R = 0
+        
+        if not game.game_over:
+            next_boardqtable = self.get_board_qtable(game=game, board=game.next_board)    
+            R = 0
+            if game.Xturn:
+                Qext = np.nanmin(next_boardqtable.qvalues)
+            else:
+                Qext = np.nanmax(next_boardqtable.qvalues)
+        
+        # update Q value 
+        current_boardqtable = self.get_board_qtable(game=game, board=game.current_board)
+        new_q_value = (1 - self.learning_rate)*current_boardqtable.qvalues[game.move] + self.learning_rate*(R + self.discount_factor*Qext)
+        current_boardqtable.qvalues[game.move] = new_q_value
+    
+
     def train(self, **kwargs):
         N = kwargs["N"]
         output_file = kwargs["output_file"]
+        self.epsilon = kwargs["epsilon"]
         self.learning_rate = kwargs["learning_rate"]
         self.discount_factor = kwargs["discount_factor"]
+        self.track_boards = kwargs["track_boards"]
         
-        game = tttgame.TicTacToe(policyA=self, 
-                                 policyB=self) 
+        # create empty array to keep training data for tracked boards
+        data = np.zeros((len(self.track_boards), N, 9)) 
         
-        # train and track boards
-        self.track_keys = kwargs["track_boards"]
-        data = np.zeros((len(self.track_keys), N, 9)) 
+        game = tttgame.TicTacToe(policyX=self, 
+                                 policyO=self)
         
         for i in tqdm(range(N)):
             game.play_game()
-            for j,key in enumerate(self.track_keys):
-                data[j][i] = self.qtable[int(key, base=3)].copy()
+            for j,boardstr in enumerate(self.track_boards):
+                game.current_board = tttgame.BoardState(boardstr)
+                data[j][i] = self.get_board_qtable(game=game, board=game.current_board).qvalues
+            game.clear_game()
         self.save(output_file)
         self.data = data
-        
+    
     
     def plot_training_results(self):        
         # plot
-        fig, ax = plt.subplots(len(self.track_keys), 2)
+        fig, ax = plt.subplots(len(self.track_boards), 2)
         for i,row in enumerate(ax):
             # Q values
             row[0].plot(self.data[i])
             row[0].legend(("0", "1", "2", "3", "4", "5", "6", "7", "8", "9"), loc="upper left")
-            row[0].set_ylabel("Q")
+            row[0].set_ylabel("Q values")
             
             # tic tac toe board
             xmin, xmax = (-0.35, 2.65)
@@ -76,98 +173,12 @@ class QTablePolicy():
             row[1].set_yticks(np.arange(xmin, xmax, 1))
             row[1].tick_params(axis='both', which='major', labelsize=0)
             row[1].grid()
-            
-            get_symbol = lambda x: ["O", None, "X"][int(x)]
-            
+                        
             shiftx, shifty = (0.5, -0.3)
             for j in range(9):
-                row[1].text(j%3, 2-int(j/3), get_symbol(self.track_keys[i][j]), fontsize=30)
+                row[1].text(j%3, 2-int(j/3), self.track_boards[i][j], fontsize=30)
                 row[1].text(j%3+shiftx, 2-int(j/3)+shifty, str(j), fontsize=10, color="r")
                 
         plt.show()
         
-    def play_parameters(self, **kwargs):
-        self.file = kwargs["input_file"]
-        self.qtable = self.load()
-        self.epsilon = kwargs["epsilon"]
-        self.learning_rate = 0
-        self.discount_factor = 0
     
-    def load(self):
-        if self.file is None: # make a random qtable
-            return self.initialize_qtable()            
-        else:
-            try:
-                return hkl.load(self.file)
-            except:
-                print(f"ERROR! Cannot open {self.file}. Exiting...")
-                sys.exit()
-                
-    def initialize_qtable(self):
-        # create # 3^9 arrays, each 9 elements long, filled with normal Gaussian samples
-        init_table = np.random.randn(3**9, 9) 
-        
-        # turn occupied squares into np.nan types
-        for i,qboard in enumerate(init_table):
-            res = np.base_repr(i, base=3)
-            key = "0" * (9-len(res)) + res
-            qboard = [q if key[i] == "1" else np.nan for i,q in enumerate(qboard)]
-            init_table[i] = qboard    
-        
-        return init_table
-        
-            
-    def save(self, file):
-        hkl.dump(self.qtable, file)
-        
-    def find_qboard(self, board):
-        key = "".join([str(int(x+1)) for x in board.flatten()])
-        qboard_index = int(key, 3) # convert from base 3 to base 10
-        return qboard_index, self.qtable[qboard_index].copy()
-        
-    def get_move(self, board, turn):
-        qboard_index, qboard = self.find_qboard(board)
-        
-        # epsilon greedy
-        if np.random.rand() < self.epsilon:
-            return RandomPolicy().get_move(board, turn)
-        
-        # return index for highest Q value for player A and lowest for player B
-        if turn == 1:
-            return np.nanargmax(qboard)
-        else:
-            return np.nanargmin(qboard)
-        
-    def learn(self, current_board, move, next_board, turn, winner, is_over):
-        current_qboard_index, current_qboard = self.find_qboard(current_board)
-        next_qboard_index, next_qboard = self.find_qboard(next_board)
-        
-        if is_over and winner == 1:
-            R = 1
-            Qext = 0
-        
-        if is_over and winner == -1:
-            R = -1
-            Qext = 0
-            
-        if is_over and winner is None:
-            return
-        
-        if not is_over:
-            R = 0
-            if turn == 1:
-                Qext = np.nanmax(next_qboard)
-            if turn == -1:
-                Qext = np.nanmin(next_qboard)
-                
-        """if not is_over:
-            R = 0
-            if turn == 1:
-                Qext = max([np.nanmax(next_qboard), np.nanmin(next_qboard)], key=abs)
-            if turn == -1:
-                Qext = max([np.nanmin(next_qboard), np.nanmax(next_qboard)], key=abs)"""
-                
-        current_qboard[move] += self.learning_rate*(R + self.discount_factor*Qext - current_qboard[move])
-        self.qtable[current_qboard_index] = current_qboard  
-        
-                

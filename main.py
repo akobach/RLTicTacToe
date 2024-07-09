@@ -1,46 +1,43 @@
-import tttpolicies 
+import tttpolicies
 import tttgame
-        
+
 
 if __name__ == "__main__":
+    
+    # policy for random player
+    #randompolicy = tttpolicies.RandomPolicy()
 
-    # train Q-learning policy
-    Qpolicy = tttpolicies.QTablePolicy(input_file=None,
-                                       epsilon=0.7)
     
-    Qpolicy.train(output_file="qtable.hkl",
-                  N=10**6,
-                  learning_rate=0.5,
-                  discount_factor=1,
-                  track_boards=["210111211"
-                                ,"022111012"
-                                #,"210111210"
-                                #,"210111111"
-                                ,"211111101"
-                                ,"120120111"
-                                ])
+    # Q policy
+    qpolicy = tttpolicies.QPolicy(input_file=None,
+                                  epsilon=0)
+                       
+    # train Q policy          
+    qpolicy.train(N=2*10**5,
+                    output_file="qtable.pkl",
+                    epsilon=0.5,
+                    discount_factor=1,
+                    learning_rate=0.5,
+                    track_boards=["X-O---X--",
+                                  "OXX---O-X",
+                                  "X------O-",
+                                  "-XO-XO---"])
     
-    Qpolicy.plot_training_results()
-    
-    
-    # test
-    """Qpolicy = tttpolicies.QTablePolicy(input_file="qtable.hkl", epsilon=0.0)
-    
-    #game = tttgame.TicTacToe(policyA=Qpolicy, policyB=tttpolicies.RandomPolicy())
-    game = tttgame.TicTacToe(policyA=Qpolicy, policyB=Qpolicy)              
-
-    game.test(N=10**3)"""
- 
-    
-    # play
-    """Qpolicy = tttpolicies.QTablePolicy(input_file="qtable.hkl",
-                                       epsilon=0.0)
-    
-    game = tttgame.TicTacToe(policyA=Qpolicy, 
-                             policyB=tttpolicies.ManualPolicy())
-    
-    game.play_game(visualize=True)"""
+    # plot the tracked boards
+    qpolicy.plot_training_results()
     
     
     
+    """
+    # test the results
+    # two perfect players will always end in a draw
+    qpolicy = tttpolicies.QPolicy(input_file="qtable.pkl",
+                                  epsilon=0)
+    
+    # define game players
+    game = tttgame.TicTacToe(policyX=qpolicy,
+                             policyO=qpolicy)
+    
+    game.test(N=10**2)
+    """
     
