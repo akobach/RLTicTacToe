@@ -9,25 +9,26 @@ Training and using a traditional Q-learing model to learn the optimal strategy a
 ### Dependencies
 
 Required python3 libraries:
+* bitarray
 * numpy
 * tqdm
-* hickle
 * matplotlib
 
 ### Installing
 
-* Just download the repo, install the needed python packages, and run locally.
+* Download the repo, install the needed python packages, and run locally.
 
 ### Executing program
 
-There are three running modes:
+There are two running modes:
 * training
 * testing
-* playing
 
-In order to play or test, you must first train the agent by play it pitted against itself.
+In order to test, you must first train the agent by play it pitted against itself.
 
-The file main.py has examples on how to run all three modes:
+The file main.py has examples on how to run these modes.  
+
+How to exceute:
 
 ```
 >> python main.py
