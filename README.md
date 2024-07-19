@@ -8,11 +8,13 @@ Training and using a traditional Q-learing model to learn the optimal strategy a
 
 ### Dependencies
 
-Required python3 libraries:
-* bitarray
+Required python3 libraries that aren't in the std library:
 * numpy
 * tqdm
 * matplotlib
+
+Alternatively, one can use the requirements.txt to set up a venv
+
 
 ### Installing
 
